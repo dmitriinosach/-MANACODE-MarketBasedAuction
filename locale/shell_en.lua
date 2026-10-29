@@ -1,0 +1,16 @@
+local _, ns = ...
+local L = ns.locales.enUS
+L.navProcessing = "Processing"
+L.navMaterials = "Materials"
+L.navBelowMarket = "Below market"
+L.navSeasonal = "Seasonal"
+L.procDisenchant = "Disenchant"
+L.procProspect = "Prospecting"
+L.procMill = "Milling"
+L.procRecycle = "Crystallized and Eternal"
+L.procLater = "Coming later."
+L.modeCraft = "Craft"
+L.modeLeveling = "Leveling"
+L.modeNpc = "Vendor recipes"
+L.modeNoLeveling = "There is no leveling catalog for this profession yet."
+L.bargainStub = "Market in progress"

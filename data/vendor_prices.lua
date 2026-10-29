@@ -1,0 +1,16 @@
+local _, ns = ...
+ns.vendorPrices[2321] = 100
+ns.vendorPrices[2325] = 1000
+ns.vendorPrices[2594] = 1500
+ns.vendorPrices[2596] = 120
+ns.vendorPrices[2604] = 50
+ns.vendorPrices[2605] = 100
+ns.vendorPrices[3371] = 4
+ns.vendorPrices[3857] = 500
+ns.vendorPrices[4341] = 500
+ns.vendorPrices[6260] = 50
+ns.vendorPrices[8343] = 2000
+ns.vendorPrices[18567] = 150000
+ns.vendorPrices[40533] = 50000
+ns.vendorPrices[44499] = 30000000
+ns.vendorPrices[44501] = 10000000

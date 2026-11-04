@@ -1,0 +1,8 @@
+<Bindings>
+    <Binding name="MANACODE_BACK" header="MANACODE">
+        ManaCodeAuctionScan_Back()
+    </Binding>
+    <Binding name="MANACODE_FORWARD">
+        ManaCodeAuctionScan_Forward()
+    </Binding>
+</Bindings>

@@ -1,0 +1,182 @@
+local _, ns = ...
+local UI = {buttons = {}}
+UI.__index = UI
+ns.CollectUI = UI
+local C = ns.Collect
+function UI.DisenchantButton(parent, width)
+    local K = ns.TradeKit
+    local b = K.Button(parent, "", width, function(self)
+        if InCombatLockdown() then return end
+        self:SetAttribute("type", "macro")
+        self:SetAttribute("macrotext", C.DisenchantMacro((C.NextDisenchant())))
+    end, "control", "SecureActionButtonTemplate")
+    b.icon = K.Picture(b, nil, "OVERLAY")
+    b.icon:ClearAllPoints()
+    b.icon:SetWidth(16); b.icon:SetHeight(16)
+    b.icon:SetPoint("LEFT", b, "LEFT", 4, 0)
+    b.icon:Hide()
+    K.Tooltip(b, ns.T("collectDisenchantTitle"), ns.T("collectDisenchantTip"))
+    b.tipFn = function()
+        local target = C.NextDisenchant()
+        if not target then return ns.T("collectDisenchantTip") end
+        return ns.T("collectDisenchantNext", target.link) .. "\n\n" .. ns.T("collectDisenchantTip")
+    end
+    K.DisabledTip(b, ns.T("collectDisenchantTitle"), ns.T("collectDisenchantNone"))
+    b:HookScript("OnShow", function() UI.RenderDisenchant(b) end)
+    UI.buttons[#UI.buttons + 1] = b
+    UI.RenderDisenchant(b)
+    return b
+end
+function UI.Attach(parent, width, place)
+    if InCombatLockdown() then
+        UI.waiting = UI.waiting or {}
+        UI.waiting[#UI.waiting + 1] = {parent = parent, width = width, place = place}
+        return
+    end
+    place(UI.DisenchantButton(parent, width))
+end
+function UI.RenderDisenchant(b)
+    local target, total = C.NextDisenchant()
+    b:SetText(ns.T("collectDisenchant", total))
+    local texture = target and ns.Compat.BagItemIcon(target.bag, target.slot)
+    if texture then b.icon:SetTexture(texture); b.icon:Show() else b.icon:Hide() end
+    if InCombatLockdown() then return end
+    if target and ns.Compat.SpellKnown(13262) then b:Enable() else b:Disable() end
+end
+function UI.Shown()
+    return ns.Store.DB().mailPanel ~= false
+end
+function UI.SetShown(on)
+    local db = ns.Store.DB()
+    if on then db.mailPanel = nil else db.mailPanel = false end
+    UI.Apply()
+    for _, check in ipairs(UI.checks) do check:SetChecked(on) end
+    if not on then ns.say(ns.T("collectHidden")) end
+end
+function UI.Apply()
+    local panel = UI.panel
+    if not panel or InCombatLockdown() then return end
+    if UI.Shown() and panel.content ~= false then panel.frame:Show() else panel.frame:Hide() end
+end
+UI.checks = {}
+function UI.ShownCheck(parent)
+    local K = ns.TradeKit
+    local check = K.Check(parent, function(checked) UI.SetShown(checked) end)
+    check:SetChecked(UI.Shown())
+    check.label = K.Label(parent, ns.T("collectShow"), 0, 0, 110, "secondary")
+    check.label:ClearAllPoints(); check.label:SetPoint("RIGHT", check, "LEFT", -2, 0)
+    check.label:SetJustifyH("RIGHT")
+    K.Tooltip(check, ns.T("collectShow"), ns.T("collectShowTip"))
+    UI.checks[#UI.checks + 1] = check
+    return check
+end
+function UI:New(parent)
+    local K = ns.TradeKit
+    local view = setmetatable({}, self)
+    local f = ns.NewFrame("Frame", nil, parent)
+    f:SetWidth(UI.Width(parent)); f:SetHeight(30)
+    f:SetPoint("TOPLEFT", parent, "BOTTOMLEFT", UI.LEFT, 42)
+    f:EnableMouse(true)
+    K.Panel(f)
+    view.frame = f
+    view.take = K.Button(f, "", 136, function()
+        if C.active then C.Stop() else C.Start() end
+        view:Render()
+    end, "control")
+    K.Tooltip(view.take, ns.T("collectTakeTitle"), ns.T("collectTakeTip"))
+    view.disenchant = UI.DisenchantButton(f, 136)
+    view.gold = K.Button(f, "", 136, function()
+        if C.gold then C.StopGold() else C.StartGold() end
+        view:Render()
+    end, "control")
+    K.Tooltip(view.gold, ns.T("collectGoldTitle"), ns.T("collectGoldTip"))
+    K.DisabledTip(view.gold, ns.T("collectGoldTitle"), ns.T("collectGoldNothing"))
+    view.hide = K.IconButton(f, "hide", function() UI.SetShown(false) end, ns.T("collectHide"), ns.T("collectHideTip"))
+    view.hide:SetPoint("TOPRIGHT", f, "TOPRIGHT", -4, -5)
+    view.intake = K.Button(f, "", 136, function() ns.AccountingUI.Intake() end, "control")
+    view.intake:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -30)
+    K.Tooltip(view.intake, ns.T("acIntakeTitle"), ns.T("acIntakeMailTip"))
+    view.status = K.Label(f, "", 8, -30, 300, "secondary")
+    f:SetScript("OnShow", function() view:Render() end)
+    return view
+end
+UI.LEFT = 18
+local MAIL_SHADOW = 34
+function UI.Width(parent)
+    return math.max(300, math.floor((parent and parent:GetWidth() or 384) - UI.LEFT - MAIL_SHADOW))
+end
+function UI:Row(shown)
+    if InCombatLockdown() then return end
+    local width = self.frame:GetWidth() or 332
+    local room = width - 8 - 22 - 6 - 4 * math.max(0, #shown - 1)
+    local each = #shown > 0 and math.floor(room / #shown) or 0
+    for _, b in ipairs({self.take, self.disenchant, self.gold}) do b:Hide() end
+    local x = 4
+    for _, b in ipairs(shown) do
+        b:SetWidth(each); b:ClearAllPoints(); b:SetPoint("TOPLEFT", self.frame, "TOPLEFT", x, -4); b:Show()
+        x = x + each + 4
+    end
+    self.intake:SetWidth(math.max(136, each))
+end
+function UI:Render()
+    local K = ns.TradeKit
+    local gifts, top = ns.AccountingEvents.GiftCount(), 30
+    if gifts > 0 then
+        self.intake:SetText(ns.T("acIntakeMail", gifts)); self.intake:Show(); top = 56
+    else self.intake:Hide() end
+    local letters, money = C.MoneyLetters()
+    if C.gold then
+        self.gold:SetText(ns.T("collectGoldStop", K.Money(C.gold.taken))); self.gold:Enable()
+    else
+        self.gold:SetText(ns.T("collectGold", K.Money(money)))
+        self.gold.tipFn = function() return ns.T("collectGoldTip") .. "\n\n" .. ns.T("collectGoldLetters", #letters) end
+        local reason = money <= 0 and ns.T("collectGoldNothing") or C.active and ns.T("collectGoldBusy") or nil
+        K.DisabledTip(self.gold, ns.T("collectGoldTitle"), reason)
+        if reason then self.gold:Disable() else self.gold:Enable() end
+    end
+    self.status:ClearAllPoints(); self.status:SetPoint("TOPLEFT", self.frame, "TOPLEFT", 8, -top)
+    local mail = C.active and #C.MailTargets(C.budget or {}) or C.MailCount()
+    if C.active then
+        self.take:SetText(ns.T("collectStop", C.taken)); self.take:Enable()
+    else
+        self.take:SetText(ns.T("collectTake", mail))
+        if mail > 0 and not C.gold then self.take:Enable() else self.take:Disable() end
+    end
+    UI.RenderDisenchant(self.disenchant)
+    local status = C.reason and ns.T(C.reason, C.reasonMoney and K.Money(C.reasonMoney) or C.taken) or ""
+    self.status:SetText(status)
+    self.frame:SetHeight(top + (status ~= "" and 16 or 0))
+    local _, disenchant = C.NextDisenchant()
+    local shown = {}
+    if C.active or mail > 0 then shown[#shown + 1] = self.take end
+    if (disenchant or 0) > 0 then shown[#shown + 1] = self.disenchant end
+    if C.gold or money > 0 then shown[#shown + 1] = self.gold end
+    self:Row(shown)
+    self.content = #shown > 0 or gifts > 0 or status ~= ""
+    if not self.content and #shown == 0 then self.status:SetPoint("TOPLEFT", self.frame, "TOPLEFT", 8, -8) end
+    UI.Apply()
+end
+function UI.Refresh()
+    local panel = UI.panel
+    local mail = panel and panel.frame:GetParent()
+    if panel and mail and mail:IsVisible() then panel:Render() end
+    for _, b in ipairs(UI.buttons) do
+        if b:IsVisible() and (not panel or b ~= panel.disenchant) then UI.RenderDisenchant(b) end
+    end
+end
+C.onChange = UI.Refresh
+local events = ns.NewFrame("Frame")
+for _, event in ipairs({"MAIL_SHOW", "PLAYER_REGEN_ENABLED"}) do ns.Listen(events, event) end
+events:SetScript("OnEvent", function(_, event)
+    if event == "PLAYER_REGEN_ENABLED" and UI.waiting then
+        local waiting = UI.waiting
+        UI.waiting = nil
+        for _, item in ipairs(waiting) do UI.Attach(item.parent, item.width, item.place) end
+    end
+    local mail = event == "MAIL_SHOW" or MailFrame and MailFrame:IsShown()
+    if mail and not UI.panel and MailFrame and not InCombatLockdown() then
+        UI.panel = UI:New(MailFrame)
+    end
+    UI.Apply()
+    UI.Refresh()
+end)

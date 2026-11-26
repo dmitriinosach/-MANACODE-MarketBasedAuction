@@ -1,0 +1,3 @@
+local _, ns = ...
+ns.aboutMirror = "https://www.curseforge.com/wow/addons/manacode-market-based-auction"
+ns.aboutAuthors = {"Futex", "Syncpool"}
